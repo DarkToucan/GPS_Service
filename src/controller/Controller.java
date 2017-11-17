@@ -45,8 +45,6 @@ public class Controller extends HttpServlet {
 	 */
 	public Controller() {
 		super();
-		//System.out.println(encrypt("1"));
-		//System.out.println(encrypt("0"));
 	}
 
 	/**
@@ -67,25 +65,22 @@ public class Controller extends HttpServlet {
 			throws ServletException, IOException {
 		try {
 			System.out.println("in services Post");
+			//open mysql connection
 			openConnection();
+			
 			// Request add new cords
+			// http://localhost:8080/NorthqGpsService/gps?user=dtu3&name=test&data=lol
 			if (request.getParameter("user") != null && request.getParameter("data") != null) {
 				System.out.println("in new GPS");
 				PreparedStatement createUserStatement = null;
 
-				// change if too much data
+				// get data
 				String user = request.getParameter("user");
 				String name = request.getParameter("name");
 				String data = request.getParameter("data").replaceAll(" ", "+");
-				// GpsModel mod = (GpsModel)deserialize(data);
-
-				// call method:
-				// http://localhost:8080/NorthqGpsService/gps?user=dtu3&data=lol
 				GpsModel mod = new GpsModel(user, data);
 
-				System.out.println(mod.getGpsCords());
-				System.out.println(mod.getUserName());
-
+				//generate statement & execute 
 				try {
 					createUserStatement = conn.prepareStatement(
 							"INSERT INTO `gpsapp`.`gps data` (`user`,`name`,`stamp`,`gpscords`) VALUES (?,?,NOW(),?);");
@@ -93,10 +88,7 @@ public class Controller extends HttpServlet {
 					createUserStatement.setString(2, name);
 					createUserStatement.setString(3, mod.getGpsCords());
 					createUserStatement.executeUpdate();
-					System.out.println(mod.getGpsCords());
-					System.out.println(mod.getGpsCords().length());
 
-					//response.getOutputStream().println(encrypt(mod.getGpsCords()));
 				} catch (SQLException ex) {
 					try {
 						createUserStatement.close();
@@ -121,9 +113,9 @@ public class Controller extends HttpServlet {
 
 				PreparedStatement createStatement = null;
 				ResultSet rs = null;
+				//fetch gps from database
 				try {
 					createStatement = conn.prepareStatement(
-							//"select t1.* from gpsapp.`gps data` t1 where t1.stamp = (select MAX(t2.stamp) from gpsapp.`gps data` t2 where t2.name = t1.name and t2.user =? order by t2.name desc limit 1);");
 							"select * from `gpsapp`.`gps data` where user = ? and name = ? ORDER BY stamp DESC LIMIT 1");
 					createStatement.setString(1, user);
 					createStatement.setString(2, name);
@@ -131,13 +123,8 @@ public class Controller extends HttpServlet {
 					String res = "";
 					while(rs.next()) {
 						String input = rs.getString("gpscords");
-						System.out.println(input);
 						String gps = decrypt(input);
 						res = res + gps;
-						System.out.println(gps);
-						//System.out.println(gps.length());
-						//System.out.println(decrypt(gps));
-						System.out.println(res);
 						 
 					}
 					response.getOutputStream().println(encrypt(res));
@@ -192,54 +179,36 @@ public class Controller extends HttpServlet {
 		}
 	}
 
-	// Generates a key
+	// Requires: 
+	// Returns: generates the AES key
 	private Key generateKey() {
 		Key key = new SecretKeySpec(keyValue, "AES");
 		return key;
 	}
 
+	// Requires: A plaintext string
+	// Returns: A  encryoted cipher text version of string
 	public String encrypt(String plainText) {
 		try {
 			Cipher AesCipher = Cipher.getInstance("AES");
 			AesCipher.init(Cipher.ENCRYPT_MODE, generateKey());
 
 			return Base64.getEncoder().withoutPadding().encodeToString((AesCipher.doFinal(plainText.getBytes())));
-		} catch (NoSuchAlgorithmException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (NoSuchPaddingException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (InvalidKeyException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IllegalBlockSizeException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (BadPaddingException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		} catch (Exception e){
+			
 		}
 		return null;
 	}
+	// Requires: A cipher text string
+	// Returns: The decrypted plain text of text string
 	public String decrypt(String cipherText){
 		try {
 			Cipher AesCipher;
 			AesCipher = Cipher.getInstance("AES");
 			AesCipher.init(Cipher.DECRYPT_MODE, generateKey());			
 			return new String(AesCipher.doFinal(Base64.getDecoder().decode(cipherText.getBytes())));
-		} catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (InvalidKeyException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IllegalBlockSizeException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (BadPaddingException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		} catch (Exception e){
+			
 		}
 		return null;
 	}
