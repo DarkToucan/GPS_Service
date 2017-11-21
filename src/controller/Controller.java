@@ -65,87 +65,175 @@ public class Controller extends HttpServlet {
 			throws ServletException, IOException {
 		try {
 			System.out.println("in services Post");
-			//open mysql connection
+			// open mysql connection
 			openConnection();
-			
-			// Request add new cords
-			// http://localhost:8080/NorthqGpsService/gps?user=dtu3&name=test&data=lol
+
 			if (request.getParameter("user") != null && request.getParameter("data") != null) {
-				System.out.println("in new GPS");
-				PreparedStatement createUserStatement = null;
-
-				// get data
-				String user = request.getParameter("user");
-				String name = request.getParameter("name");
-				String data = request.getParameter("data").replaceAll(" ", "+");
-				GpsModel mod = new GpsModel(user, data);
-
-				//generate statement & execute 
-				try {
-					createUserStatement = conn.prepareStatement(
-							"INSERT INTO `gpsapp`.`gps data` (`user`,`name`,`stamp`,`gpscords`) VALUES (?,?,NOW(),?);");
-					createUserStatement.setString(1, mod.userName);
-					createUserStatement.setString(2, name);
-					createUserStatement.setString(3, mod.getGpsCords());
-					createUserStatement.executeUpdate();
-
-				} catch (SQLException ex) {
-					try {
-						createUserStatement.close();
-					} catch (Exception e1) {
-						ex.printStackTrace();
-						/* ignored */
-					} finally {
-						try {
-							createUserStatement.close();
-						} catch (Exception ex2) {
-							ex2.printStackTrace();
-						}
-					}
-				}
-				// call method:
-				// http://localhost:8080/NorthqGpsService/gps?getGPS=dtu3&name=Bil
+				newData(request);
 			} else if (request.getParameter("getGPS") != null && request.getParameter("name") != null) {
-				System.out.println("in get GPS");
-
-				String user = sanatiseInput((String) request.getParameter("getGPS"), 5000);
-				String name = sanatiseInput((String) request.getParameter("name"), 5000);
-
-				PreparedStatement createStatement = null;
-				ResultSet rs = null;
-				//fetch gps from database
-				try {
-					createStatement = conn.prepareStatement(
-							"select * from `gpsapp`.`gps data` where user = ? and name = ? ORDER BY stamp DESC LIMIT 1");
-					createStatement.setString(1, user);
-					createStatement.setString(2, name);
-					rs = createStatement.executeQuery();
-					String res = "";
-					while(rs.next()) {
-						String input = rs.getString("gpscords");
-						String gps = decrypt(input);
-						res = res + gps;
-						 
-					}
-					response.getOutputStream().println(encrypt(res));
-					
-				} catch (SQLException e) {
-					System.out.println(e.getClass().getName() + ": " + e.getMessage());
-				} finally {
-					try {
-						rs.close();
-					} catch (Exception e) {
-						/* Ignored */}
-					try {
-						createStatement.close();
-					} catch (Exception e) {
-						/* Ignored */}
-				}
-
+				getGPSdata(request, response);
+			} else if (request.getParameter("getHome") != null) {
+				getHomeLocation(request, response);
+			} else if (request.getParameter("getNotifications") != null) {
+				getNotificationsData(request, response);
 			}
 			close();
 		} catch (Exception e) {
 			e.printStackTrace();
+		}
+	}
+	
+	// Requires: request, response
+	// Returns: gets last 10 notification encrypts and returns them
+	private void getNotificationsData(HttpServletRequest request, HttpServletResponse response) throws IOException {
+		String name = sanatiseInput(request.getParameter("getNotifications"), 200);
+		PreparedStatement createStatement = null;
+		PreparedStatement userStatement = null;
+		ResultSet rs = null;
+		// fetch gps from database
+		try {
+			createStatement = conn.prepareStatement(
+					"select * from gpsapp.notifications ORDER BY notifcations.`TimeStamp` DESC LIMIT 10;");
+			createStatement.setString(1, name);
+			userStatement = conn.prepareStatement("select 1 from gpsapp.registeredgpsusers where registeredgpsusers = ?;");
+			userStatement.setString(1, name);
+			
+			rs = userStatement.executeQuery();
+			String res = "";
+			while (rs.next()) {
+				if(!rs.getString(1).equals("1"))return; //invalid user break
+
+			}
+			rs.close();
+			rs = null;
+			rs = createStatement.executeQuery();
+			while (rs.next()) {
+				String input = rs.getString("TimeStamp");
+				res = res + rs.getString("TimeStamp")+","+ rs.getString("Device")+":";
+			}
+			response.getOutputStream().println(encrypt(res.substring(0, res.length() - 1))); //remove last comma
+
+		} catch (SQLException e) {
+			System.out.println(e.getClass().getName() + " " + e.getMessage());
+		} finally {
+			try {
+				rs.close();
+			} catch (Exception e) {
+				/* Ignored */}
+			try {
+				createStatement.close();
+			} catch (Exception e) {
+				/* Ignored */}
+		}
+	}
+	// Requires: request, response
+	// Returns: gets homelocation, encrypts and returns it
+	private void getHomeLocation(HttpServletRequest request, HttpServletResponse response) throws IOException {
+		String name = sanatiseInput(request.getParameter("getHome"), 200);
+		PreparedStatement createStatement = null;
+		ResultSet rs = null;
+		// fetch gps from database
+		try {
+			createStatement = conn.prepareStatement(
+					"select Homelocation from gpsapp.registeredgpsusers where registeredgpsusers.Username = ?;");
+			createStatement.setString(1, name);
+			rs = createStatement.executeQuery();
+			String res = "";
+			while (rs.next()) {
+				String input = rs.getString("gpscords");
+				String gps = decrypt(input);
+				res = res + gps;
+
+			}
+			response.getOutputStream().println(encrypt(res));
+
+		} catch (SQLException e) {
+			System.out.println(e.getClass().getName() + ": " + e.getMessage());
+		} finally {
+			try {
+				rs.close();
+			} catch (Exception e) {
+				/* Ignored */}
+			try {
+				createStatement.close();
+			} catch (Exception e) {
+				/* Ignored */}
+		}
+	}
+	// Requires: request, response
+	// Returns: gets gps data and returns it encrypted
+	private void getGPSdata(HttpServletRequest request, HttpServletResponse response) throws IOException {
+		System.out.println("in get GPS");
+
+		String user = sanatiseInput((String) request.getParameter("getGPS"), 5000);
+		String name = sanatiseInput((String) request.getParameter("name"), 5000);
+
+		PreparedStatement createStatement = null;
+		ResultSet rs = null;
+		// fetch gps from database
+		try {
+			createStatement = conn.prepareStatement(
+					"select * from `gpsapp`.`gpsdata` where user = ? and name = ? ORDER BY stamp DESC LIMIT 1");
+			createStatement.setString(1, user);
+			createStatement.setString(2, name);
+			rs = createStatement.executeQuery();
+			String res = "";
+			while (rs.next()) {
+				String input = rs.getString("gpscords");
+				String gps = decrypt(input);
+				res = res + gps;
+
+			}
+			response.getOutputStream().println(encrypt(res));
+
+		} catch (SQLException e) {
+			System.out.println(e.getClass().getName() + ": " + e.getMessage());
+		} finally {
+			try {
+				rs.close();
+			} catch (Exception e) {
+				/* Ignored */}
+			try {
+				createStatement.close();
+			} catch (Exception e) {
+				/* Ignored */}
+		}
+	}
+	
+	// Requires: request, response
+	// Returns: inserts new gps data into db
+	private void newData(HttpServletRequest request) {
+		System.out.println("in new GPS");
+		PreparedStatement createUserStatement = null;
+
+		// get data
+		String user = request.getParameter("user");
+		String name = request.getParameter("name");
+		String data = request.getParameter("data").replaceAll(" ", "+");
+		GpsModel mod = new GpsModel(user, data);
+
+		// generate statement & execute
+		try {
+			createUserStatement = conn.prepareStatement(
+					"INSERT INTO `gpsapp`.`gpsdata` (`user`,`name`,`stamp`,`gpscords`) VALUES (?,?,NOW(),?);");
+			createUserStatement.setString(1, mod.userName);
+			createUserStatement.setString(2, name);
+			createUserStatement.setString(3, mod.getGpsCords());
+			createUserStatement.executeUpdate();
+
+		} catch (SQLException ex) {
+			try {
+				createUserStatement.close();
+			} catch (Exception e1) {
+				ex.printStackTrace();
+				/* ignored */
+			} finally {
+				try {
+					createUserStatement.close();
+				} catch (Exception ex2) {
+					ex2.printStackTrace();
+				}
+			}
 		}
 	}
 
@@ -179,7 +267,7 @@ public class Controller extends HttpServlet {
 		}
 	}
 
-	// Requires: 
+	// Requires:
 	// Returns: generates the AES key
 	private Key generateKey() {
 		Key key = new SecretKeySpec(keyValue, "AES");
@@ -187,28 +275,29 @@ public class Controller extends HttpServlet {
 	}
 
 	// Requires: A plaintext string
-	// Returns: A  encryoted cipher text version of string
+	// Returns: A encryoted cipher text version of string
 	public String encrypt(String plainText) {
 		try {
 			Cipher AesCipher = Cipher.getInstance("AES");
 			AesCipher.init(Cipher.ENCRYPT_MODE, generateKey());
 
 			return Base64.getEncoder().withoutPadding().encodeToString((AesCipher.doFinal(plainText.getBytes())));
-		} catch (Exception e){
-			
+		} catch (Exception e) {
+
 		}
 		return null;
 	}
+
 	// Requires: A cipher text string
 	// Returns: The decrypted plain text of text string
-	public String decrypt(String cipherText){
+	public String decrypt(String cipherText) {
 		try {
 			Cipher AesCipher;
 			AesCipher = Cipher.getInstance("AES");
-			AesCipher.init(Cipher.DECRYPT_MODE, generateKey());			
+			AesCipher.init(Cipher.DECRYPT_MODE, generateKey());
 			return new String(AesCipher.doFinal(Base64.getDecoder().decode(cipherText.getBytes())));
-		} catch (Exception e){
-			
+		} catch (Exception e) {
+
 		}
 		return null;
 	}
