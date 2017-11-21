@@ -215,7 +215,7 @@ public class Controller extends HttpServlet {
 		// generate statement & execute
 		try {
 			createUserStatement = conn.prepareStatement(
-					"INSERT INTO `gpsapp`.`gpsdata` (`user`,`name`,`stamp`,`gpscords`) VALUES (?,NOW(),?);");
+					"INSERT INTO `gpsapp`.`gpsdata` (`user`,`stamp`,`gpscords`) VALUES (?,NOW(),?);");
 			createUserStatement.setString(1, mod.userName);
 			createUserStatement.setString(2, name);
 			createUserStatement.setString(3, mod.getGpsCords());
