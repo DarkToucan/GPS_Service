@@ -29,16 +29,18 @@ import javax.servlet.http.HttpServletResponse;
 import org.jsoup.Jsoup;
 import org.jsoup.safety.Whitelist;
 
+import model.GpsModel;
+
 /**
  * Servlet implementation class Service
  */
 @WebServlet("/Service")
 public class Controller extends HttpServlet {
 	private static final long serialVersionUID = 1L;
-	private String sqlUser = "";
-	private String sqlPassword = "";
+	private String sqlUser = "root";
+	private String sqlPassword = "changeme";
 	Connection conn;
-	private final byte[] keyValue = "".getBytes();
+	private final byte[] keyValue = "Beercalc12DTU123".getBytes();
 
 	/**
 	 * @see HttpServlet#HttpServlet()
@@ -53,7 +55,6 @@ public class Controller extends HttpServlet {
 	 */
 	protected void doGet(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
-		System.out.println("in services get");
 		doPost(request, response);
 	}
 
@@ -64,7 +65,6 @@ public class Controller extends HttpServlet {
 	protected void doPost(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
 		try {
-			System.out.println("in services Post");
 			// open mysql connection
 			openConnection();
 
@@ -82,7 +82,7 @@ public class Controller extends HttpServlet {
 			e.printStackTrace();
 		}
 	}
-	
+
 	// Requires: request, response
 	// Returns: gets last 10 notification encrypts and returns them
 	private void getNotificationsData(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -95,26 +95,29 @@ public class Controller extends HttpServlet {
 			createStatement = conn.prepareStatement(
 					"select * from gpsapp.notifications ORDER BY notifcations.`TimeStamp` DESC LIMIT 10;");
 			createStatement.setString(1, name);
-			userStatement = conn.prepareStatement("select 1 from gpsapp.registeredgpsusers where registeredgpsusers = ?;");
+			userStatement = conn
+					.prepareStatement("select 1 from gpsapp.registeredgpsusers where registeredgpsusers = ?;");
 			userStatement.setString(1, name);
-			
+
 			rs = userStatement.executeQuery();
 			String res = "";
 			while (rs.next()) {
-				if(!rs.getString(1).equals("1"))return; //invalid user break
+				if (!rs.getString(1).equals("1"))
+					return; // invalid user break
 
 			}
 			rs.close();
 			rs = null;
 			rs = createStatement.executeQuery();
 			while (rs.next()) {
-				String input = rs.getString("TimeStamp");
-				res = res + rs.getString("TimeStamp")+","+ rs.getString("Device")+":";
+				res = res + rs.getString("TimeStamp") + "," + rs.getString("Device") + ":";
 			}
-			response.getOutputStream().println(encrypt(res.substring(0, res.length() - 1))); //remove last comma
+			response.getOutputStream().println(encrypt(res.substring(0, res.length() - 1))); // remove
+																								// last
+																								// comma
 
 		} catch (SQLException e) {
-			System.out.println(e.getClass().getName() + " " + e.getMessage());
+			e.printStackTrace();
 		} finally {
 			try {
 				rs.close();
@@ -126,6 +129,7 @@ public class Controller extends HttpServlet {
 				/* Ignored */}
 		}
 	}
+
 	// Requires: request, response
 	// Returns: gets homelocation, encrypts and returns it
 	private void getHomeLocation(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -140,15 +144,13 @@ public class Controller extends HttpServlet {
 			rs = createStatement.executeQuery();
 			String res = "";
 			while (rs.next()) {
-				String input = rs.getString("gpscords");
-				String gps = decrypt(input);
-				res = res + gps;
-
+				String input = rs.getString(1);
+				res = input;
 			}
 			response.getOutputStream().println(encrypt(res));
 
 		} catch (SQLException e) {
-			System.out.println(e.getClass().getName() + ": " + e.getMessage());
+			e.printStackTrace();
 		} finally {
 			try {
 				rs.close();
@@ -160,11 +162,10 @@ public class Controller extends HttpServlet {
 				/* Ignored */}
 		}
 	}
+
 	// Requires: request, response
 	// Returns: gets gps data and returns it encrypted
 	private void getGPSdata(HttpServletRequest request, HttpServletResponse response) throws IOException {
-		System.out.println("in get GPS");
-
 		String user = sanatiseInput((String) request.getParameter("getGPS"), 5000);
 		String name = sanatiseInput((String) request.getParameter("name"), 5000);
 
@@ -172,8 +173,8 @@ public class Controller extends HttpServlet {
 		ResultSet rs = null;
 		// fetch gps from database
 		try {
-			createStatement = conn.prepareStatement(
-					"select * from `gpsapp`.`gpsdata` where user = ? and name = ? ORDER BY stamp DESC LIMIT 1");
+			createStatement = conn
+					.prepareStatement("select * from `gpsapp`.`gpsdata` where user = ? ORDER BY stamp DESC LIMIT 1");
 			createStatement.setString(1, user);
 			createStatement.setString(2, name);
 			rs = createStatement.executeQuery();
@@ -187,7 +188,7 @@ public class Controller extends HttpServlet {
 			response.getOutputStream().println(encrypt(res));
 
 		} catch (SQLException e) {
-			System.out.println(e.getClass().getName() + ": " + e.getMessage());
+			e.printStackTrace();
 		} finally {
 			try {
 				rs.close();
@@ -199,29 +200,28 @@ public class Controller extends HttpServlet {
 				/* Ignored */}
 		}
 	}
-	
+
 	// Requires: request, response
 	// Returns: inserts new gps data into db
 	private void newData(HttpServletRequest request) {
-		System.out.println("in new GPS");
 		PreparedStatement createUserStatement = null;
 
 		// get data
 		String user = request.getParameter("user");
-		String name = request.getParameter("name");
 		String data = request.getParameter("data").replaceAll(" ", "+");
+		data = encrypt(decrypt(data));
 		GpsModel mod = new GpsModel(user, data);
 
 		// generate statement & execute
 		try {
-			createUserStatement = conn.prepareStatement(
-					"INSERT INTO `gpsapp`.`gpsdata` (`user`,`stamp`,`gpscords`) VALUES (?,NOW(),?);");
+			createUserStatement = conn
+					.prepareStatement("INSERT INTO `gpsapp`.`gpsdata` (`user`,`stamp`,`gpscords`) VALUES (?,NOW(),?);");
 			createUserStatement.setString(1, mod.userName);
-			createUserStatement.setString(2, name);
-			createUserStatement.setString(3, mod.getGpsCords());
+			createUserStatement.setString(2, mod.getGpsCords());
 			createUserStatement.executeUpdate();
 
 		} catch (SQLException ex) {
+			ex.printStackTrace();
 			try {
 				createUserStatement.close();
 			} catch (Exception e1) {
@@ -250,7 +250,7 @@ public class Controller extends HttpServlet {
 			Class.forName("com.mysql.jdbc.Driver");
 			conn = DriverManager.getConnection("jdbc:Mysql://localhost:3306", sqlUser, sqlPassword);
 		} catch (Exception e) {
-			System.out.println(e.getClass().getName() + ": " + e.getMessage());
+			e.printStackTrace();
 		}
 	}
 
