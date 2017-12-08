@@ -77,9 +77,10 @@ public class Controller extends HttpServlet {
 			} else if (request.getParameter("getNotifications") != null) {
 				getNotificationsData(request, response);
 			}
-			close();
 		} catch (Exception e) {
 			e.printStackTrace();
+		}finally{
+			close();
 		}
 	}
 
@@ -92,25 +93,24 @@ public class Controller extends HttpServlet {
 		ResultSet rs = null;
 		// fetch gps from database
 		try {
-			createStatement = conn.prepareStatement(
-					"select * from gpsapp.notifications ORDER BY notifcations.`TimeStamp` DESC LIMIT 10;");
-			createStatement.setString(1, name);
 			userStatement = conn
-					.prepareStatement("select 1 from gpsapp.registeredgpsusers where registeredgpsusers = ?;");
+					.prepareStatement("select 1 from gpsapp.registeredgpsusers where registeredgpsusers.Username = ?;");
 			userStatement.setString(1, name);
 
 			rs = userStatement.executeQuery();
 			String res = "";
 			while (rs.next()) {
-				if (!rs.getString(1).equals("1"))
-					return; // invalid user break
-
+				if (!rs.getString(1).equals("1")){
+					throw new NullPointerException();	
+				}
 			}
 			rs.close();
 			rs = null;
+			createStatement = conn.prepareStatement(
+					"select * from gpsapp.notifications ORDER BY `TimeStamp` DESC LIMIT 10;");
 			rs = createStatement.executeQuery();
 			while (rs.next()) {
-				res = res + rs.getString("TimeStamp") + "," + rs.getString("Device") + ":";
+				res = res + rs.getString("TimeStamp") + "," + rs.getString("Device") + ";";
 			}
 			response.getOutputStream().println(encrypt(res.substring(0, res.length() - 1))); // remove
 																								// last
