@@ -1,6 +1,9 @@
 package controller;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.security.InvalidKeyException;
@@ -37,8 +40,9 @@ import model.GpsModel;
 @WebServlet("/Service")
 public class Controller extends HttpServlet {
 	private static final long serialVersionUID = 1L;
-	private String sqlUser = "root";
-	private String sqlPassword = "changeme";
+	private final String PATH = new File(System.getProperty("user.dir")) + "";
+	private String sqlUser;
+	private String sqlPassword;
 	Connection conn;
 	private final byte[] keyValue = "Beercalc12DTU123".getBytes();
 
@@ -47,6 +51,7 @@ public class Controller extends HttpServlet {
 	 */
 	public Controller() {
 		super();
+		loadConfig();
 	}
 
 	/**
@@ -56,6 +61,7 @@ public class Controller extends HttpServlet {
 	protected void doGet(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
 		doPost(request, response);
+		loadConfig();
 	}
 
 	/**
@@ -64,6 +70,7 @@ public class Controller extends HttpServlet {
 	 */
 	protected void doPost(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
+		loadConfig();
 		try {
 			// open mysql connection
 			openConnection();
@@ -79,7 +86,7 @@ public class Controller extends HttpServlet {
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
-		}finally{
+		} finally {
 			close();
 		}
 	}
@@ -100,14 +107,14 @@ public class Controller extends HttpServlet {
 			rs = userStatement.executeQuery();
 			String res = "";
 			while (rs.next()) {
-				if (!rs.getString(1).equals("1")){
-					throw new NullPointerException();	
+				if (!rs.getString(1).equals("1")) {
+					throw new NullPointerException();
 				}
 			}
 			rs.close();
 			rs = null;
-			createStatement = conn.prepareStatement(
-					"select * from gpsapp.notifications ORDER BY `TimeStamp` DESC LIMIT 10;");
+			createStatement = conn
+					.prepareStatement("select * from gpsapp.notifications ORDER BY `TimeStamp` DESC LIMIT 10;");
 			rs = createStatement.executeQuery();
 			while (rs.next()) {
 				res = res + rs.getString("TimeStamp") + "," + rs.getString("Device") + ";";
@@ -300,6 +307,26 @@ public class Controller extends HttpServlet {
 
 		}
 		return null;
+	}
+
+	// Requires:
+	// Returns: Loads the config into the system
+	public void loadConfig() {
+		try {
+			BufferedReader br = new BufferedReader(new FileReader(PATH + "/config.txt"));
+			String line;
+			while ((line = br.readLine()) != null) {
+				if (line.substring(0, line.indexOf("#")).equals("sqlUser")) {
+					sqlUser = line.substring(line.indexOf("#") + 1);
+				}
+				if (line.substring(0, line.indexOf("#")).equals("sqlPassword")) {
+					sqlPassword = line.substring(line.indexOf("#") + 1);
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
 	}
 
 }
