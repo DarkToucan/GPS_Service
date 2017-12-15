@@ -35,7 +35,7 @@ import org.jsoup.safety.Whitelist;
 import model.GpsModel;
 
 /**
- * Servlet implementation class Service
+ * Servlet implementation class Service @author Dan
  */
 @WebServlet("/Service")
 public class Controller extends HttpServlet {
